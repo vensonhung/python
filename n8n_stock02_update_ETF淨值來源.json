@@ -1,0 +1,201 @@
+{
+  "name": "直接在 n8n 執行 stock02.py 並更新 ETF淨值來源",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "91ff5cd6-ec2d-4765-8a0c-b884b9722587",
+      "name": "手動測試執行",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        752,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 16 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "a896661f-6344-4d14-a04d-7a987b4f9675",
+      "name": "每日收盤定時執行 (16:30)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        752,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8088/run",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "bff6b9f7-57a2-4cb6-9f04-2d2b2a14d3a7",
+      "name": "HTTP Request - 呼叫本地執行 stock02.py",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1024,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/1d_FExnz8Rmv8KICVVKi-Vfdj-U3aZVLph6skUMssdJc/values/%27ETF%E6%B7%A8%E5%80%BC%E4%BE%86%E6%BA%90%27!A2%3AJ:clear",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "f008fa5a-d398-4c57-81cd-61a8ef128554",
+      "name": "Google Sheets API - 清除 ETF淨值來源舊資料",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1280,
+        544
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9rI8zBeZbzWUf5tr",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('HTTP Request - 呼叫本地執行 stock02.py').first().json;\n\nif (!Array.isArray(src.records)) {\n  throw new Error('HTTP Request 回傳資料中找不到 records 陣列');\n}\n\nconst headers = [\n  'ETF代號',\n  'ETF名稱',\n  '淨值',\n  '淨值漲跌%',\n  '市價',\n  '市價漲跌%',\n  '折溢價',\n  '折溢價%',\n  '成交量',\n  '追蹤標的'\n];\n\nconst values = src.records.map(row => headers.map(h => {\n  const value = row[h] ?? '';\n  // ETF代號固定以字串寫入，搭配 RAW 保留 0050、00929、00631L 等格式\n  return h === 'ETF代號' ? String(value) : value;\n}));\n\nreturn [{\n  json: {\n    date: src.date,\n    total_count: src.total_count,\n    values\n  }\n}];"
+      },
+      "id": "a056a511-23ed-4d9a-87eb-05c58af7e124",
+      "name": "Code - 準備 ETF淨值來源資料",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/1d_FExnz8Rmv8KICVVKi-Vfdj-U3aZVLph6skUMssdJc/values/%27ETF%E6%B7%A8%E5%80%BC%E4%BE%86%E6%BA%90%27!A2",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "valueInputOption",
+              "value": "RAW"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ values: $json.values }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "58a2552f-daf0-498a-a550-a3b3e6ca6c17",
+      "name": "Google Sheets API - 更新 ETF淨值來源",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1792,
+        544
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9rI8zBeZbzWUf5tr",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "手動測試執行": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - 呼叫本地執行 stock02.py",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "每日收盤定時執行 (16:30)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - 呼叫本地執行 stock02.py",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - 呼叫本地執行 stock02.py": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets API - 清除 ETF淨值來源舊資料",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets API - 清除 ETF淨值來源舊資料": {
+      "main": [
+        [
+          {
+            "node": "Code - 準備 ETF淨值來源資料",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - 準備 ETF淨值來源資料": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets API - 更新 ETF淨值來源",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "79cce206-d1f7-4599-aacc-83897757f13b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "54c4244065b6b50af90fc1c926b2fe89ffb5dfd5eedfc9251462fa6e1246afa8"
+  },
+  "tags": []
+}
